@@ -46,3 +46,5 @@ tex/web-server*
 html/content
 html/cache
 *.pid
+ci/code/results
+ci/code/test_result*

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 This is the test runner.
 
@@ -13,7 +15,7 @@ import errno
 import os
 import re
 import socket
-import SocketServer
+import socketserver
 import subprocess
 import time
 import threading
@@ -22,14 +24,14 @@ import unittest
 import helpers
 
 
-class ThreadingTCPServer(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     dispatcher_server = None # Holds the dispatcher server host/port information
     last_communication = None # Keeps track of last communication from dispatcher
     busy = False # Status flag
     dead = False # Status flag
 
 
-class TestHandler(SocketServer.BaseRequestHandler):
+class TestHandler(socketserver.BaseRequestHandler):
     """
     The RequestHandler class for our server.
     """
@@ -39,35 +41,35 @@ class TestHandler(SocketServer.BaseRequestHandler):
     def handle(self):
         # self.request is the TCP socket connected to the client
         self.data = self.request.recv(1024).strip()
-        command_groups = self.command_re.match(self.data)
+        command_groups = self.command_re.match(self.data.decode('utf-8'))
         command = command_groups.group(1)
         if not command:
-            self.request.sendall("Invalid command")
+            self.request.sendall(b"Invalid command")
             return
         if command == "ping":
-            print "pinged"
+            print("pinged")
             self.server.last_communication = time.time()
-            self.request.sendall("pong")
+            self.request.sendall(b"pong")
         elif command == "runtest":
-            print "got runtest command: am I busy? %s" % self.server.busy
+            print("got runtest command: am I busy? %s" % self.server.busy)
             if self.server.busy:
-                self.request.sendall("BUSY")
+                self.request.sendall(b"BUSY")
             else:
-                self.request.sendall("OK")
-                print "running"
+                self.request.sendall(b"OK")
+                print("running")
                 commit_id = command_groups.group(2)[1:]
                 self.server.busy = True
                 self.run_tests(commit_id,
                                self.server.repo_folder)
                 self.server.busy = False
         else:
-            self.request.sendall("Invalid command")
+            self.request.sendall(b"Invalid command")
 
     def run_tests(self, commit_id, repo_folder):
         # update repo
         output = subprocess.check_output(["./test_runner_script.sh",
                                         repo_folder, commit_id])
-        print output
+        print(output)
         # run the tests
         test_folder = os.path.join(repo_folder, "tests")
         suite = unittest.TestLoader().discover(test_folder)
@@ -110,8 +112,8 @@ def serve():
             try:
                 server = ThreadingTCPServer((runner_host, runner_port),
                                             TestHandler)
-                print server
-                print runner_port
+                print(server)
+                print(runner_port)
                 break
             except socket.error as e:
                 if e.errno == errno.EADDRINUSE:
@@ -131,8 +133,7 @@ def serve():
     server.dispatcher_server = {"host":dispatcher_host, "port":dispatcher_port}
     response = helpers.communicate(server.dispatcher_server["host"],
                                    int(server.dispatcher_server["port"]),
-                                   "register:%s:%s" %
-                                   (runner_host, runner_port))
+                                   f"register:{runner_host}:{runner_port}")
     if response != "OK":
         raise Exception("Can't register with dispatcher!")
 
@@ -149,11 +150,11 @@ def serve():
                                        int(server.dispatcher_server["port"]),
                                        "status")
                     if response != "OK":
-                        print "Dispatcher is no longer functional"
+                        print("Dispatcher is no longer functional")
                         server.shutdown()
                         return
                 except socket.error as e:
-                    print "Can't communicate with dispatcher: %s" % e
+                    print("Can't communicate with dispatcher: %s" % e)
                     server.shutdown()
                     return
 
